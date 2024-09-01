@@ -34,7 +34,8 @@ public class Pieces : MonoBehaviour
     {
         transform.DOMove(new Vector3(destX, destY, -5f), 0.25f).SetEase(Ease.InOutCubic).onComplete = () =>
         {
-            x = destX; y = destY;
+            x = destX;
+            y = destY;
         };
     }
 

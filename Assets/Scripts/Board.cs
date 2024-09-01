@@ -15,7 +15,7 @@ public class Board : MonoBehaviour
     Tile[,] tiles;
     Pieces[,] pieces;
     Tile startTile, endTile;
-
+    public int PointsPerMatch;
     bool swappingPieces = false;
     // Start is called before the first frame update
     void Start()
@@ -67,7 +67,7 @@ public class Board : MonoBehaviour
     private Pieces CreatePieceAt(int x, int y)
     {
         var selectedpiece = availablePieces[UnityEngine.Random.Range(0, availablePieces.Length)];
-        var o = Instantiate(selectedpiece, new Vector3(x, y+1 - 5), Quaternion.identity);
+        var o = Instantiate(selectedpiece, new Vector3(x, y +1 - 5), Quaternion.identity);
         o.transform.parent = transform;
         pieces[x, y] = o.GetComponent<Pieces>();
         pieces[x, y].Setup(x, y, this);
@@ -153,6 +153,7 @@ public class Board : MonoBehaviour
         else
         {
             ClearPieces(allMatches);
+            AwardPoints(allMatches);
         }
 
         startTile = null; endTile=null; yield return null;
@@ -183,8 +184,9 @@ public class Board : MonoBehaviour
             var matches = GetMatchByPiece(piece.x, piece.y, 3);
             if (matches != null)
             {
-                newMatches = newMatches.Union(matches).ToList();
-                ClearPieces(matches);
+               newMatches = newMatches.Union(matches).ToList();
+               ClearPieces(matches);
+               AwardPoints (newMatches);
             }
         });
         if (newMatches.Count > 0)
@@ -325,6 +327,10 @@ public class Board : MonoBehaviour
             foundMatches = foundMatches.Union(horizontalMatches).ToList();
         }
         return foundMatches;
+    }
+    public void AwardPoints(List<Pieces> allMatches)
+    {
+        GameManager.Instance.Addpoint(allMatches.Count*PointsPerMatch);
     }
 }
 

@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
 
-public class Pieces : MonoBehaviour
+public class Piece : MonoBehaviour
 {
-    public int x, y;
+    public int x;
+    public int y;
     public Board board;
+
 
     public enum type
     {
@@ -21,24 +23,27 @@ public class Pieces : MonoBehaviour
         rabbit,
         snake
     };
+
     public type pieceType;
+
     public void Setup(int x_, int y_, Board board_)
     {
         x = x_;
         y = y_;
         board = board_;
+
         transform.localScale = Vector3.one * 0.35f;
         transform.DOScale(Vector3.one, 0.35f);
     }
-    public void Move(int destX, int destY)
+
+    public void Move(int desX, int desY)
     {
-        transform.DOMove(new Vector3(destX, destY, -5f), 0.25f).SetEase(Ease.InOutCubic).onComplete = () =>
+        transform.DOMove(new Vector3(desX, desY, -5f), 0.25f).SetEase(Ease.InOutCubic).onComplete = () =>
         {
-            x = destX;
-            y = destY;
+            x = desX;
+            y = desY;
         };
     }
-
 
     public void Remove(bool animated)
     {
@@ -60,10 +65,8 @@ public class Pieces : MonoBehaviour
     }
 
     [ContextMenu("Test Move")]
-        public void MoveTest()
-        {
-            Move(0, 0);
-        }
-    } 
-
-
+    public void MoveTest()
+    {
+        Move(0, 0);
+    }
+}

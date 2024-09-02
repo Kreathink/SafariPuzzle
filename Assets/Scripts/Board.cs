@@ -5,26 +5,56 @@ using System.Linq;
 using UnityEngine;
 
 public class Board : MonoBehaviour
-
 {
-    public float timeBetweenPieces = 0.01f;
-    [SerializeField] int height, width;
+    public float timeBetweenPieces = 0.05f;
+
+    public int width, height;
     public GameObject tileObject;
-    public float cameraVerticalOffset, cameraSizeOffset;
-    public GameObject[] availablePieces;
-    Tile[,] tiles;
-    Pieces[,] pieces;
-    Tile startTile, endTile;
     public int PointsPerMatch;
+    public float cameraSizeOffset;
+    public float cameraVerticalOffset;
+
+    public GameObject[] availablePieces;
+
+    Tile[,] Tiles;
+    Piece[,] Pieces;
+
+    Tile startTile;
+    Tile endTile;
+
     bool swappingPieces = false;
+
     // Start is called before the first frame update
     void Start()
     {
-        tiles = new Tile[width, height];
-        pieces = new Pieces[width, height];
+
+        Tiles = new Tile[width, height];
+        Pieces = new Piece[width, height];
+
         SetupBoard();
         PositionCamera();
-        StartCoroutine(SetupPieces());
+        if (GameManager.Instance.gameState == GameManager.GameState.InGame)
+        {
+            StartCoroutine(SetupPieces());
+        }
+        GameManager.Instance.OnGameStateUpdated.AddListener(OnGameStateUpdated);
+    }
+
+    private void OnDestroy()
+    {
+        GameManager.Instance.OnGameStateUpdated.RemoveListener(OnGameStateUpdated);
+    }
+    private void OnGameStateUpdated(GameManager.GameState newState)
+    {
+        if (newState == GameManager.GameState.InGame) 
+        {
+          StartCoroutine (SetupPieces());
+        }
+        if (newState == GameManager.GameState.GameOver)
+        {
+            ClearAllPieces();
+        }
+
     }
 
     private IEnumerator SetupPieces()
@@ -36,7 +66,7 @@ public class Board : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 yield return new WaitForSeconds(timeBetweenPieces);
-                if (pieces[x,y] == null)
+                if (Pieces[x, y] == null)
                 {
                     currentIteration = 0;
                     var newPiece = CreatePieceAt(x, y);
@@ -58,30 +88,43 @@ public class Board : MonoBehaviour
 
     private void ClearPieceAt(int x, int y)
     {
-        var pieceToClear = pieces[x, y];
+        var pieceToClear = Pieces[x, y];
         pieceToClear.Remove(true);
-        pieces[x, y] = null;
-       
+        Pieces[x, y] = null;
+    }
+    private void ClearAllPieces()
+    {
+        for (int x = 0;x< width; x++)
+        {
+            for(int y = 0; y < height; y++)
+            {
+                ClearPieceAt(x,y);
+            }
+        }
+    }
+    private Piece CreatePieceAt(int x, int y)
+    {
+        var selectedPiece = availablePieces[UnityEngine.Random.Range(0, availablePieces.Length)];
+        var o = Instantiate(selectedPiece, new Vector3(x, y + 1, -5), Quaternion.identity);
+        o.transform.parent = transform;
+        Pieces[x, y] = o.GetComponent<Piece>();
+        Pieces[x, y].Setup(x, y, this);
+        Pieces[x, y].Move(x, y);
+        return Pieces[x, y];
     }
 
-    private Pieces CreatePieceAt(int x, int y)
-    {
-        var selectedpiece = availablePieces[UnityEngine.Random.Range(0, availablePieces.Length)];
-        var o = Instantiate(selectedpiece, new Vector3(x, y +1 - 5), Quaternion.identity);
-        o.transform.parent = transform;
-        pieces[x, y] = o.GetComponent<Pieces>();
-        pieces[x, y].Setup(x, y, this);
-        pieces[x, y].Move(x, y);
-        return pieces[x, y];
-    }
     private void PositionCamera()
     {
         float newPosX = (float)width / 2f;
         float newPosY = (float)height / 2f;
+
         Camera.main.transform.position = new Vector3(newPosX - 0.5f, newPosY - 0.5f + cameraVerticalOffset, -10f);
+
         float horizontal = width + 1;
         float vertical = (height / 2) + 1;
+
         Camera.main.orthographicSize = horizontal > vertical ? horizontal + cameraSizeOffset : vertical + cameraSizeOffset;
+
     }
 
     private void SetupBoard()
@@ -90,31 +133,33 @@ public class Board : MonoBehaviour
         {
             for (int y = 0; y < height; y++)
             {
-                var o = Instantiate(tileObject, new Vector3(x, y - 5), Quaternion.identity);
+                var o = Instantiate(tileObject, new Vector3(x, y, -5), Quaternion.identity);
                 o.transform.parent = transform;
-                tiles[x, y] = o.GetComponent<Tile>();
-                tiles[x, y]?.Setup(x, y, this);
+                Tiles[x, y] = o.GetComponent<Tile>();
+                Tiles[x, y]?.Setup(x, y, this);
             }
         }
     }
+
     public void TileDown(Tile tile_)
     {
-        if (!swappingPieces)
+        if (!swappingPieces && GameManager.Instance.gameState==GameManager.GameState.InGame)
         {
             startTile = tile_;
         }
     }
+
     public void TileOver(Tile tile_)
     {
-        if (!swappingPieces)
+        if (!swappingPieces && GameManager.Instance.gameState == GameManager.GameState.InGame)
         {
             endTile = tile_;
         }
     }
+
     public void TileUp(Tile tile_)
     {
-
-        if (!swappingPieces)
+        if (!swappingPieces && GameManager.Instance.gameState == GameManager.GameState.InGame)
         {
             if (startTile != null && endTile != null && IsCloseTo(startTile, endTile))
             {
@@ -126,73 +171,77 @@ public class Board : MonoBehaviour
     IEnumerator SwapTiles()
     {
         swappingPieces = true;
-        var StartPiece = pieces[startTile.x, startTile.y];
-        var EndPiece = pieces[endTile.x, endTile.y];
-        StartPiece.Move(endTile.x, endTile.y);
+        var StarPiece = Pieces[startTile.x, startTile.y];
+        var EndPiece = Pieces[endTile.x, endTile.y];
+
+        StarPiece.Move(endTile.x, endTile.y);
         EndPiece.Move(startTile.x, startTile.y);
 
-        pieces[startTile.x, startTile.y] = EndPiece;
-        pieces[endTile.x, endTile.y] = StartPiece;
+        Pieces[startTile.x, startTile.y] = EndPiece;
+        Pieces[endTile.x, endTile.y] = StarPiece;
 
         yield return new WaitForSeconds(0.6f);
 
         var startMatches = GetMatchByPiece(startTile.x, startTile.y, 3);
-        var endMatches = GetMatchByPiece(endTile.x,endTile.y, 3);
+        var endMatches = GetMatchByPiece(endTile.x, endTile.y, 3);
+
 
         var allMatches = startMatches.Union(endMatches).ToList();
-         
-        
-        if (allMatches.Count ==0)
-        {
-            StartPiece.Move(startTile.x, startTile.y);
-            EndPiece.Move(endTile.x, endTile.y);
-            pieces[startTile.x, startTile.y] = StartPiece;
-            pieces[endTile.x, endTile.y] = EndPiece;
-        }
 
+
+        if (allMatches.Count == 0)
+        {
+            StarPiece.Move(startTile.x, startTile.y);
+            EndPiece.Move(endTile.x, endTile.y);
+            Pieces[startTile.x, startTile.y] = StarPiece;
+            Pieces[endTile.x, endTile.y] = EndPiece;
+        }
         else
         {
             ClearPieces(allMatches);
             AwardPoints(allMatches);
         }
 
-        startTile = null; endTile=null; yield return null;
+        startTile = null;
+        endTile = null;
+        swappingPieces = false;
+
+        yield return null;
     }
 
-    private void ClearPieces(List<Pieces> piecesToClear)
+    private void ClearPieces(List<Piece> piecesToClear)
     {
         piecesToClear.ForEach(piece =>
         {
             ClearPieceAt(piece.x, piece.y);
         });
-        List <int> columns = GetColumns (piecesToClear);
-        List <Pieces> collapsePieces = collapseColumns(columns, 0.3f);
-        FindMatchsRecusrsively(collapsePieces);
+        List<int> columns = GetColumns(piecesToClear);
+        List<Piece> collapsedPieces = collapseColumns(columns, 0.3f);
+        FindMatchsRecursively(collapsedPieces);
     }
 
-    private void FindMatchsRecusrsively(List<Pieces> collapsePieces)
+    private void FindMatchsRecursively(List<Piece> collapsedPieces)
     {
-        StartCoroutine(FindMatchsRecusrsivelyCoroutine(collapsePieces));
+        StartCoroutine(FindMatchsRecursivelyCoroutine(collapsedPieces));
     }
 
-    IEnumerator FindMatchsRecusrsivelyCoroutine(List<Pieces> collapsePieces)
+    IEnumerator FindMatchsRecursivelyCoroutine(List<Piece> collapsedPieces)
     {
         yield return new WaitForSeconds(1f);
-        List<Pieces> newMatches = new List<Pieces>();
-        collapsePieces.ForEach(piece =>
+        List<Piece> newMatches = new List<Piece>();
+        collapsedPieces.ForEach(piece =>
         {
             var matches = GetMatchByPiece(piece.x, piece.y, 3);
             if (matches != null)
             {
-               newMatches = newMatches.Union(matches).ToList();
-               ClearPieces(matches);
-               AwardPoints (newMatches);
+                newMatches = newMatches.Union(matches).ToList();
+                ClearPieces(matches);
             }
         });
         if (newMatches.Count > 0)
         {
-            var newCollapsePieces = collapseColumns(GetColumns(newMatches), 0.3f);
-            FindMatchsRecusrsively(newCollapsePieces);
+            var newCollapsedPieces = collapseColumns(GetColumns(newMatches), 0.3f);
+            FindMatchsRecursively(newCollapsedPieces);
         }
         else
         {
@@ -203,9 +252,10 @@ public class Board : MonoBehaviour
         yield return null;
     }
 
-    private List<int> GetColumns (List<Pieces> piecesToClear)
+    private List<int> GetColumns(List<Piece> piecesToClear)
     {
         var result = new List<int>();
+
         piecesToClear.ForEach(piece =>
         {
             if (!result.Contains(piece.x))
@@ -213,29 +263,32 @@ public class Board : MonoBehaviour
                 result.Add(piece.x);
             }
         });
+
         return result;
     }
-    private List<Pieces> collapseColumns(List<int> columns, float timeToCollapse)
+
+    private List<Piece> collapseColumns(List<int> columns, float timeToCollapse)
     {
-        List<Pieces> movingPieces = new List<Pieces>();
-        for (int i = 0; i< columns.Count; i++)
+        List<Piece> movingPieces = new List<Piece>();
+
+        for (int i = 0; i < columns.Count; i++)
         {
             var column = columns[i];
-            for (int y = 0; y< height; y++)
+            for (int y = 0; y < height; y++)
             {
-                if (pieces[column, y] == null)
+                if (Pieces[column, y] == null)
                 {
-                    for (int yplus = y+1; yplus < height; yplus++)
+                    for (int yplus = y + 1; yplus < height; yplus++)
                     {
-                        if (pieces[column, yplus] == null)
+                        if (Pieces[column, yplus] != null)
                         {
-                            pieces[column, yplus].Move(column, y);
-                            pieces[column, y] = pieces[column, yplus];
-                            if (!movingPieces.Contains(pieces[column, y]))
+                            Pieces[column, yplus].Move(column, y);
+                            Pieces[column, y] = Pieces[column, yplus];
+                            if (!movingPieces.Contains(Pieces[column, y]))
                             {
-                                movingPieces.Add(pieces[column, y]);
+                                movingPieces.Add(Pieces[column, y]);
                             }
-                            pieces[column, yplus] = null;
+                            Pieces[column, yplus] = null;
                             break;
                         }
                     }
@@ -243,45 +296,48 @@ public class Board : MonoBehaviour
             }
         }
         return movingPieces;
-    } 
-
+    }
     public bool IsCloseTo(Tile start, Tile end)
     {
-        if (Math.Abs(start.x - end.x) == 1 && start.y == end.y)
+        if (Math.Abs((start.x - end.x)) == 1 && start.y == end.y)
         {
             return true;
         }
-        if (Math.Abs(start.y - end.y) == 1 && start.x == end.x)
+        if (Math.Abs((start.y - end.y)) == 1 && start.x == end.x)
         {
             return true;
         }
         return false;
     }
-     bool HasPreviousMatches(int posX, int posY)
-    {
-        var downMatch = GetMatchByDirection(posX, posY, new Vector2(0, -1), 2);
-        var leftMatch = GetMatchByDirection(posX, posY, new Vector2(-1,0), 2);
 
-        if (downMatch != null) downMatch = new List<Pieces>();
-        if (leftMatch != null) leftMatch = new List<Pieces>();
-        return(downMatch.Count > 0) || leftMatch.Count > 0;
+    bool HasPreviousMatches(int posx, int posy)
+    {
+        var downMatches = GetMatchByDirection(posx, posy, new Vector2(0, -1), 2);
+        var leftMatches = GetMatchByDirection(posx, posy, new Vector2(-1, 0), 2);
+
+        if (downMatches == null) downMatches = new List<Piece>();
+        if (leftMatches == null) leftMatches = new List<Piece>();
+
+        return (downMatches.Count > 0 || leftMatches.Count > 0);
+
     }
-
-    public List<Pieces> GetMatchByDirection(int xpos, int ypos, Vector2 direction, int minPieces = 3)
+    public List<Piece> GetMatchByDirection(int xpos, int ypos, Vector2 direction, int minPieces = 3)
     {
-        List<Pieces> matches = new List<Pieces>();
-        Pieces startPiece = pieces[xpos, ypos];
+        List<Piece> matches = new List<Piece>();
+        Piece startPiece = Pieces[xpos, ypos];
         matches.Add(startPiece);
 
-        int nextX, nextY;
+        int nextX;
+        int nextY;
         int maxVal = width > height ? width : height;
-        for (int i = 0; i < maxVal; i++)
+
+        for (int i = 1; i < maxVal; i++)
         {
             nextX = xpos + ((int)direction.x * i);
             nextY = ypos + ((int)direction.y * i);
             if (nextX >= 0 && nextX < width && nextY >= 0 && nextY < height)
             {
-                var nextPiece = pieces[nextX, nextY];
+                var nextPiece = Pieces[nextX, nextY];
                 if (nextPiece != null && nextPiece.pieceType == startPiece.pieceType)
                 {
                     matches.Add(nextPiece);
@@ -292,31 +348,31 @@ public class Board : MonoBehaviour
                 }
             }
         }
-        if (matches.Count >= minPieces)
 
+        if (matches.Count >= minPieces)
         {
             return matches;
         }
+
         return null;
     }
 
-    
-    public List<Pieces> GetMatchByPiece(int xpos, int ypos, int minPieces = 3)
+    public List<Piece> GetMatchByPiece(int xpos, int ypos, int minPieces = 3)
     {
-        var upMatch = GetMatchByDirection(xpos, ypos, new Vector2(0,1), 2);
-        var downMatch = GetMatchByDirection(xpos, ypos, new Vector2(0, -1), 2);
-        var rightMatch = GetMatchByDirection(xpos, ypos, new Vector2(1, 0), 2);
-        var leftMatch = GetMatchByDirection(xpos, ypos, new Vector2(-1, 0), 2);
+        var upMatchs = GetMatchByDirection(xpos, ypos, new Vector2(0, 1), 2);
+        var downMatchs = GetMatchByDirection(xpos, ypos, new Vector2(0, -1), 2);
+        var rightMatchs = GetMatchByDirection(xpos, ypos, new Vector2(1, 0), 2);
+        var leftMatchs = GetMatchByDirection(xpos, ypos, new Vector2(-1, 0), 2);
 
-        if (upMatch == null) upMatch = new List<Pieces>();
-        if (downMatch == null) downMatch = new List<Pieces>();
-        if (rightMatch == null) rightMatch = new List<Pieces>();
-        if (leftMatch == null) leftMatch = new List<Pieces>();
+        if (upMatchs == null) upMatchs = new List<Piece>();
+        if (downMatchs == null) downMatchs = new List<Piece>();
+        if (rightMatchs == null) rightMatchs = new List<Piece>();
+        if (leftMatchs == null) leftMatchs = new List<Piece>();
 
-        var verticalMatches = upMatch.Union(downMatch).ToList();
-        var horizontalMatches = leftMatch.Union(rightMatch).ToList();
+        var verticalMatches = upMatchs.Union(downMatchs).ToList();
+        var horizontalMatches = leftMatchs.Union(rightMatchs).ToList();
 
-        var foundMatches = new List<Pieces>();
+        var foundMatches = new List<Piece>();
 
         if (verticalMatches.Count >= minPieces)
         {
@@ -326,11 +382,13 @@ public class Board : MonoBehaviour
         {
             foundMatches = foundMatches.Union(horizontalMatches).ToList();
         }
+
         return foundMatches;
     }
-    public void AwardPoints(List<Pieces> allMatches)
+public void AwardPoints(List<Piece> allMatches)
     {
-        GameManager.Instance.Addpoint(allMatches.Count*PointsPerMatch);
+        GameManager.Instance.AddPoints(allMatches.Count*PointsPerMatch);
     }
 }
+
 

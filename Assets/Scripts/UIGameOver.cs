@@ -4,46 +4,46 @@ using UnityEngine;
 using TMPro;
 using System;
 
-public class UIPoints : MonoBehaviour
+public class UIGameOver : MonoBehaviour
 {
-    int displayedPoints = 0;
-    public TextMeshProUGUI pointsLabel;
-
-    // Start is called before the first frame update
+    public int displayedPoints = 0;
+    public TextMeshProUGUI pointsUI;
     void Start()
     {
-        GameManager.Instance.OnPointsUpdated.AddListener(UpdatePoints);
         GameManager.Instance.OnGameStateUpdated.AddListener(GameStateUpdated);
-
     }
     private void OnDestroy()
     {
-        GameManager.Instance.OnPointsUpdated.RemoveListener(UpdatePoints);
         GameManager.Instance.OnGameStateUpdated.RemoveListener(GameStateUpdated);
     }
-
     private void GameStateUpdated(GameManager.GameState newState)
     {
         if (newState == GameManager.GameState.GameOver)
         {
             displayedPoints = 0;
-            pointsLabel.text=displayedPoints.ToString();
+            StartCoroutine(DisplayPointsCoroutine());
         }
     }
-
-    void UpdatePoints()
-    {
-        StartCoroutine(UpdatePointsCoroutine());
-    }
-
-    IEnumerator UpdatePointsCoroutine()
+    IEnumerator DisplayPointsCoroutine()
     {
         while (displayedPoints < GameManager.Instance.Points)
         {
             displayedPoints++;
-            pointsLabel.text = displayedPoints.ToString();
-            yield return new WaitForSeconds(0.1f);
+            pointsUI.text = displayedPoints.ToString();
+            yield return new WaitForFixedUpdate();
         }
+        displayedPoints = GameManager.Instance.Points;
+        pointsUI.text = displayedPoints.ToString();
         yield return null;
     }
+
+    public void PlayAgainButon()
+    {
+        GameManager.Instance.RestartGame();
+    }
+    public void ExitGameButon()
+    {
+        GameManager.Instance.ExitGame();
+    }
+
 }

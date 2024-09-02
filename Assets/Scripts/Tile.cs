@@ -4,7 +4,8 @@ using UnityEngine;
 
 public class Tile : MonoBehaviour
 {
-    public int x, y;
+    public int x;
+    public int y;
     public Board board;
 
     public void Setup(int x_, int y_, Board board_)
@@ -19,15 +20,13 @@ public class Tile : MonoBehaviour
         board.TileDown(this);
     }
 
-public void OnMouseEnter()
+    public void OnMouseEnter()
     {
         board.TileOver(this);
     }
 
-public void OnMouseUp()
+    public void OnMouseUp()
     {
         board.TileUp(this);
     }
-
-
 }
